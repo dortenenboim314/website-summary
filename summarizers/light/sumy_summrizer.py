@@ -11,8 +11,9 @@ class SumyTextRankSummarizer:
     def __init__(self):
         self.summarizer = SumyTextRank()
 
-    def summarize(self, markdown: str, language: str, max_sentences: int) -> str:
-        text = MarkdownPreprocessor.markdown_to_clean_text(markdown)
-        parser = PlaintextParser.from_string(text, Tokenizer(language))
+    def summarize(self, text: str, lang: str = "en", **kwargs) -> str:
+        text = MarkdownPreprocessor.markdown_to_clean_text(text)
+        parser = PlaintextParser.from_string(text, Tokenizer(lang))
+        max_sentences = kwargs.get("max_sentences", 5)
         summary = self.summarizer(parser.document, max_sentences)
         return " ".join([str(sentence) for sentence in summary])

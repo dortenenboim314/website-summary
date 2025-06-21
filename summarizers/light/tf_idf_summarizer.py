@@ -28,7 +28,7 @@ class TFIDFSummarizer:
     }
     
     def __init__(self, 
-                 position_weight: bool = True, 
+                 position_weight: bool = False, 
                  min_sentence_length: int = 10):
         """
         Initialize TF-IDF Summarizer.
@@ -183,7 +183,7 @@ class TFIDFSummarizer:
         
         return filtered
 
-    def summarize(self, markdown: str, language: str, max_sentences: int) -> str:
+    def summarize(self, text: str, language: str, **kwargs) -> str:
         """
         Generate extractive summary using TF-IDF sentence ranking.
         
@@ -195,16 +195,17 @@ class TFIDFSummarizer:
         Returns:
             Summary as a string
         """
-        if not markdown or not markdown.strip():
+        max_sentences = kwargs.get('max_sentences', 5)
+        if not text or not text.strip():
             return ""
 
-        markdown = MarkdownPreprocessor.markdown_to_clean_text(markdown)
+        text = MarkdownPreprocessor.markdown_to_clean_text(text)
         
         # Get language-specific stopwords
         stopwords_set = self._get_stopwords(language)
         
         # Tokenize into sentences
-        sentences = self._sentence_tokenize(markdown, language)
+        sentences = self._sentence_tokenize(text, language)
         sentences = self._filter_sentences(sentences)
         
         # If we have fewer sentences than requested, return all

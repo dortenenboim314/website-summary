@@ -8,8 +8,7 @@ class SummarizationScore(BaseModel):
     relevance: int = Field(..., ge=1, le=5, description="How well does the summary capture the most important information? (1=misses key points, 5=captures all important points)")
     coherence: int = Field(..., ge=1, le=5, description="How well-structured and readable is the summary? (1=confusing/disjointed, 5=clear and well-organized)")
     conciseness: int = Field(..., ge=1, le=5, description="How appropriately condensed is the summary? (1=too verbose or too brief, 5=perfect length)")
-    language_consistency: int = Field(..., ge=0, le=1, description="Is the summary in the same language as the original? (0=different language, 1=same language)")
-
+    language_consistency: bool = Field(..., description="Is the summary in the same language as the original?")
 class SummarizationJudge:
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4.1-nano-2025-04-14"):
         """
@@ -22,7 +21,7 @@ class SummarizationJudge:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         
-        self.system_prompt = """You are an expert evaluator of text summaries. Your task is to evaluate how well a summary represents the original markdown content.
+        self.system_prompt = """You are an expert evaluator of text summaries. Your task is to evaluate how well a summary represents plain-text content scraped from a web page.
 
 Please evaluate the summary on these criteria:
 
@@ -54,11 +53,11 @@ Please evaluate the summary on these criteria:
 - 4: Good length with minor length issues
 - 5: Perfect balance of brevity and completeness
 
-**Language Consistency (0-1)**: Is the summary in the same language as the original?
-- 0: Summary is in a different language than the original
-- 1: Summary is in the same language as the original
+**Language Consistency** (boolean): Is the summary in the same language as the original?
+- False: Summary is in a different language than the original
+- True:  Summary is in the same language as the original
 
-Focus on objective assessment. The language consistency check is critical - if the summary is in a different language than the original, it should score 0 regardless of content quality."""
+Focus on objective assessment. If the summary is in a different language than the original, it should be False regardless of content quality."""
 
     def evaluate_summary(self, original_markdown: str, summary: str, language: str = "english") -> SummarizationScore:
         """
@@ -85,10 +84,9 @@ Please evaluate this summary against the original content using the four criteri
         try:
             response = self.client.responses.parse(
                 model=self.model,
-                input=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                instructions=self.system_prompt,
+                temperature=0.0,
+                input=user_prompt,
                 text_format=SummarizationScore
             )
             

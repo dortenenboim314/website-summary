@@ -1,4 +1,4 @@
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import MT5ForConditionalGeneration, MT5Tokenizer, T5ForConditionalGeneration, T5Tokenizer
 from typing import List
 
 class AbstractiveSummarizer:
@@ -16,28 +16,24 @@ class AbstractiveSummarizer:
         self.english_tokenizer = T5Tokenizer.from_pretrained("t5-small")
         
         # Multilingual: Base mT5 (requires prompting)
-        self.multilingual_model = T5ForConditionalGeneration.from_pretrained("google/mt5-small")
-        self.multilingual_tokenizer = T5Tokenizer.from_pretrained("google/mt5-small")
-        
+        self.multilingual_model = MT5ForConditionalGeneration.from_pretrained("csebuetnlp/mT5_multilingual_XLSum")
+        self.multilingual_tokenizer = MT5Tokenizer.from_pretrained("csebuetnlp/mT5_multilingual_XLSum")
+
         print("Abstractive models loaded successfully!")
     
     def _get_models(self, language: str):
         """Get appropriate model and tokenizer based on language."""
-        if language == 'en':
+        if language.lower() in ['en', 'english']:
+            print("Using English abstractive model")
             return self.english_model, self.english_tokenizer
         else:
+            print(f"Using multilingual abstractive model for {language}")
             return self.multilingual_model, self.multilingual_tokenizer
     
     def _prepare_input(self, sentences: List[str], language: str) -> str:
-        """Prepare input text for the model."""
-        # Join sentences into single text
-        text = ' '.join(sentences)
-        
-        # Add task prefix for multilingual model
-        if language == 'en':
-            return text  # No prefix needed for fine-tuned English model
-        else:
-            return f"summarize: {text}"
+        text = " ".join(sentences)
+        return f"summarize: {text}" 
+
     
     def summarize(self, sentences: List[str], language: str = 'en', max_length: int = 150) -> str:
         """

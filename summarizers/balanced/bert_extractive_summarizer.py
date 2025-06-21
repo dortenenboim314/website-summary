@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
@@ -35,7 +35,7 @@ class BERTClusterSummarizer:
     
     def _get_model(self, language: str):
         """Route to appropriate model based on language."""
-        if language == 'en':
+        if language in ['en', 'english']:
             return self.english_model
         else:
             return self.multilingual_model
