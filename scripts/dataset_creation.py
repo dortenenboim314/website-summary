@@ -18,8 +18,8 @@ class UnifiedDatasetCreator:
         self.collected_items = []
         self.seen_urls = set()
         
-    def get_target_distribution(self, total_items: int = 300) -> Dict[Tuple[str, str], int]:
-        """Define target distribution by (source, language) - Dynamic content only"""
+    def get_target_distribution(self, total_items: int = 500) -> Dict[Tuple[str, str], int]:
+        """Define target distribution by (source, language) - Include Wikipedia + Dynamic content"""
         
         # Language weights (40% English, 60% others uniform)
         english_ratio = 0.4
@@ -28,25 +28,43 @@ class UnifiedDatasetCreator:
         
         distribution = {}
         
-        # All dynamic content distribution  
-        english_total = int(total_items * english_ratio)
-        other_total = total_items - english_total
+        # Split between Wikipedia (30%) and dynamic content (70%)
+        wikipedia_items = int(total_items * 0.3)
+        dynamic_items = total_items - wikipedia_items
         
-        # English dynamic sources (more variety since no Wikipedia)
-        distribution[('news', 'english')] = int(english_total * 0.35)  # 35% of English
-        distribution[('github', 'english')] = int(english_total * 0.25)  # 25% of English
-        distribution[('reddit', 'english')] = int(english_total * 0.2)   # 20% of English
-        distribution[('blog', 'english')] = int(english_total * 0.2)     # 20% of English
+        # Wikipedia distribution
+        english_wikipedia = int(wikipedia_items * english_ratio)
+        other_wikipedia = wikipedia_items - english_wikipedia
+        
+        distribution[('wikipedia', 'english')] = english_wikipedia
+        
+        # Distribute other languages for Wikipedia
+        other_wiki_each = other_wikipedia // len(other_languages)
+        remainder = other_wikipedia % len(other_languages)
+        
+        for i, lang in enumerate(other_languages):
+            count = other_wiki_each + (1 if i < remainder else 0)
+            distribution[('wikipedia', lang)] = count
+        
+        # Dynamic content distribution  
+        english_dynamic = int(dynamic_items * english_ratio)
+        other_dynamic = dynamic_items - english_dynamic
+        
+        # English dynamic sources
+        distribution[('news', 'english')] = int(english_dynamic * 0.35)  # 35% of English dynamic
+        distribution[('github', 'english')] = int(english_dynamic * 0.25)  # 25% of English dynamic
+        distribution[('reddit', 'english')] = int(english_dynamic * 0.2)   # 20% of English dynamic
+        distribution[('blog', 'english')] = english_dynamic - distribution[('news', 'english')] - distribution[('github', 'english')] - distribution[('reddit', 'english')]
         
         # Other languages dynamic (mainly news, some reddit/blogs)
-        other_each = other_total // len(other_languages)
+        other_each_dynamic = other_dynamic // len(other_languages)
         for lang in other_languages:
             if lang in ['spanish', 'french']:  # Spanish and French get some variety
-                distribution[('news', lang)] = int(other_each * 0.6)
-                distribution[('reddit', lang)] = int(other_each * 0.2)
-                distribution[('blog', lang)] = other_each - distribution[('news', lang)] - distribution[('reddit', lang)]
+                distribution[('news', lang)] = int(other_each_dynamic * 0.6)
+                distribution[('reddit', lang)] = int(other_each_dynamic * 0.2)
+                distribution[('blog', lang)] = other_each_dynamic - distribution[('news', lang)] - distribution[('reddit', lang)]
             else:  # German, Chinese, Arabic mainly news
-                distribution[('news', lang)] = other_each
+                distribution[('news', lang)] = other_each_dynamic
         
         return distribution
     
@@ -153,6 +171,83 @@ class UnifiedDatasetCreator:
             })
         
         return urls
+    
+    def extract_wikipedia_content(self, language: str, target_count: int) -> int:
+        """Extract Wikipedia content for a specific language"""
+        
+        logger.info(f"Extracting {target_count} Wikipedia items in {language}")
+        
+        # Get Wikipedia URLs
+        wikipedia_urls = self.get_wikipedia_urls(language, target_count)
+        
+        extracted_count = 0
+        
+        for url_info in wikipedia_urls:
+            if extracted_count >= target_count:
+                break
+                
+            try:
+                url = url_info['url']
+                topic = url_info['topic']
+                
+                if url in self.seen_urls:
+                    continue
+                
+                logger.info(f"Fetching Wikipedia ({language}): {topic}")
+                
+                # Use Tavily to fetch Wikipedia content
+                response = self.client.search(
+                    query=f"site:wikipedia.org {topic}",
+                    include_raw_content=True,
+                    max_results=1,
+                    search_depth="basic"
+                )
+                
+                if not response.get('results'):
+                    logger.warning(f"No content found for {topic}")
+                    continue
+                
+                result = response['results'][0]
+                text_content = result.get("raw_content", "")
+                title = result.get("title", topic)
+                actual_url = result.get("url", url)
+                
+                if not text_content:
+                    logger.warning(f"Empty content for {topic}")
+                    continue
+                
+                # Apply minimum length filter (100 chars for Wikipedia)
+                if len(text_content.strip()) < 100:
+                    logger.warning(f"Content too short for {topic}: {len(text_content)} chars")
+                    continue
+                
+                domain = self._extract_domain(actual_url)
+                
+                item = {
+                    'url': actual_url,
+                    'text': text_content.strip(),
+                    'language': language,
+                    'domain': domain,
+                    'source': 'wikipedia',
+                    'length': len(text_content.strip()),
+                    'word_count': len(text_content.strip().split())
+                }
+                
+                self.collected_items.append(item)
+                self.seen_urls.add(actual_url)
+                extracted_count += 1
+                
+                logger.info(f"✓ Wikipedia {language}: {title[:40]}... ({len(text_content)} chars)")
+                
+                # Small delay between fetches
+                time.sleep(random.uniform(1, 2))
+                
+            except Exception as e:
+                logger.error(f"Error fetching Wikipedia '{topic}': {str(e)}")
+                continue
+        
+        logger.info(f"Wikipedia {language}: extracted {extracted_count}/{target_count} items")
+        return extracted_count
     
     def get_dynamic_search_configs(self) -> Dict[str, Dict]:
         """Get search configurations for dynamic content - Expanded topics"""
@@ -457,7 +552,7 @@ class UnifiedDatasetCreator:
                 
                 response = self.client.search(
                     query=search_term,
-                    include_raw_content='text',  # Use text instead of True
+                    include_raw_content=True,  # True for markdown, text for plain text
                     include_domains=domains,
                     max_results=3,
                     search_depth="basic"
@@ -508,8 +603,7 @@ class UnifiedDatasetCreator:
     
     def _get_min_length_for_source(self, source: str) -> int:
         """Get minimum content length based on source type"""
-        # All sources have minimum 100 chars
-        return 100
+        return 100  # Other sources minimum 100 chars
     
     def _extract_domain(self, url: str) -> str:
         """Extract domain name from URL"""
@@ -521,7 +615,7 @@ class UnifiedDatasetCreator:
     def create_dataset(self, total_items: int = 300):
         """Main method to create the unified dataset"""
         
-        logger.info(f"Creating dynamic content dataset with {total_items} items")
+        logger.info(f"Creating dataset with Wikipedia + dynamic content ({total_items} items)")
         logger.info("="*60)
         
         # Get target distribution
@@ -543,7 +637,10 @@ class UnifiedDatasetCreator:
             
             logger.info(f"\n--- {source.upper()} in {language.upper()} (target: {target_count}) ---")
             
-            extracted = self.extract_dynamic_content(source, language, target_count)
+            if source == 'wikipedia':
+                extracted = self.extract_wikipedia_content(language, target_count)
+            else:
+                extracted = self.extract_dynamic_content(source, language, target_count)
             
             total_extracted += extracted
             
@@ -567,7 +664,7 @@ class UnifiedDatasetCreator:
         
         logger.info(f"\nSaving {len(self.collected_items)} items to {self.output_file}")
         
-        fieldnames = ['url', 'text', 'language', 'domain', 'source', 'length', 'word_count']
+        fieldnames = ['url', 'raw_markdown', 'language', 'domain', 'source', 'length', 'word_count']
         
         with open(self.output_file, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -584,7 +681,7 @@ class UnifiedDatasetCreator:
         """Print comprehensive summary"""
         
         logger.info("\n" + "="*60)
-        logger.info("DYNAMIC CONTENT DATASET CREATION COMPLETED!")
+        logger.info("DATASET CREATION COMPLETED!")
         logger.info("="*60)
         
         logger.info(f"Total items collected: {len(self.collected_items)}")
@@ -650,9 +747,9 @@ class UnifiedDatasetCreator:
         logger.info(f"\n✓ Dataset saved to: {self.output_file}")
 
 def main():
-    """Main function to run the dynamic content dataset creator"""
+    """Main function to run the dataset creator"""
     creator = UnifiedDatasetCreator()
-    creator.create_dataset(300)  # Target 300 total items
+    creator.create_dataset(500)  # Target 500 total items
 
 if __name__ == "__main__":
     main()
