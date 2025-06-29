@@ -59,19 +59,16 @@ class TFIDFSummarizer:
     
     # Remove the _detect_language method entirely
     
-    def _get_stopwords(self, lang_code: str) -> set:
-        """Get stopwords for the specified language."""
-        lang_name = self.SUPPORTED_LANGUAGES.get(lang_code, 'english')
-        
+    def _get_stopwords(self, lang_name: str) -> set:
+        """Get stopwords for the specified language."""        
         try:
             return set(stopwords.words(lang_name))
         except:
             # Fallback to English stopwords
             return set(stopwords.words('english'))
     
-    def _sentence_tokenize(self, text: str, language: str) -> List[str]:
+    def _sentence_tokenize(self, text: str, lang_name: str) -> List[str]:
         """Tokenize text into sentences."""
-        lang_name = self.SUPPORTED_LANGUAGES.get(language, 'english')
         try:
             return sent_tokenize(text, language=lang_name)
         except:
@@ -183,7 +180,7 @@ class TFIDFSummarizer:
         
         return filtered
 
-    def summarize(self, text: str, language: str, **kwargs) -> str:
+    def summarize(self, text: str, lang: str, **kwargs) -> str:
         """
         Generate extractive summary using TF-IDF sentence ranking.
         
@@ -202,10 +199,10 @@ class TFIDFSummarizer:
         text = MarkdownPreprocessor.markdown_to_clean_text(text)
         
         # Get language-specific stopwords
-        stopwords_set = self._get_stopwords(language)
+        stopwords_set = self._get_stopwords(lang)
         
         # Tokenize into sentences
-        sentences = self._sentence_tokenize(text, language)
+        sentences = self._sentence_tokenize(text, lang)
         sentences = self._filter_sentences(sentences)
         
         # If we have fewer sentences than requested, return all
@@ -245,34 +242,3 @@ class TFIDFSummarizer:
         # Build summary
         summary_sentences = [sentences[i] for i in selected_indices]
         return ' '.join(summary_sentences)
-    
-    def get_sentence_scores(self, text: str, language: str = 'en') -> List[Tuple[str, float]]:
-        """
-        Get sentences with their TF-IDF scores for debugging/analysis.
-        
-        Args:
-            text: Input text to analyze
-            language: Language code (e.g., 'en', 'es', 'fr', 'de', etc.)
-        
-        Returns:
-            List of (sentence, score) tuples sorted by score
-        """
-        if not text or not text.strip():
-            return []
-        
-        stopwords_set = self._get_stopwords(language)
-        sentences = self._sentence_tokenize(text, language)
-        sentences = self._filter_sentences(sentences)
-        
-        if len(sentences) <= 1:
-            return [(sentences[0], 1.0)] if sentences else []
-        
-        processed_sentences = [self._preprocess_sentence(s, stopwords_set) for s in sentences]
-        tf_scores = self._calculate_tf(processed_sentences)
-        idf_dict = self._calculate_idf(processed_sentences)
-        sentence_scores = self._calculate_sentence_scores(tf_scores, idf_dict)
-        final_scores = self._apply_position_weights(sentence_scores)
-        
-        scored_sentences = list(zip(sentences, final_scores))
-        return sorted(scored_sentences, key=lambda x: x[1], reverse=True)
-

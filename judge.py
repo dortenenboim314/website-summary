@@ -4,13 +4,44 @@ from typing import Optional
 
 class SummarizationScore(BaseModel):
     """Structured output for summarization evaluation scores"""
-    faithfulness: int = Field(..., ge=1, le=5, description="How accurately does the summary reflect the source content? (1=completely inaccurate, 5=perfectly accurate)")
-    relevance: int = Field(..., ge=1, le=5, description="How well does the summary capture the most important information? (1=misses key points, 5=captures all important points)")
-    coherence: int = Field(..., ge=1, le=5, description="How well-structured and readable is the summary? (1=confusing/disjointed, 5=clear and well-organized)")
-    conciseness: int = Field(..., ge=1, le=5, description="How appropriately condensed is the summary? (1=too verbose or too brief, 5=perfect length)")
-    language_consistency: bool = Field(..., description="Is the summary in the same language as the original?")
+    faithfulness: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="How accurately does the summary reflect the source content? (1=significant errors or misrepresentations, 5=completely faithful)"
+    )
+    recall: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="How well does the summary capture all important points from the source? (1=misses most key points, 5=includes all critical information)"
+    )
+    precision: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="How well does the summary focus on only relevant points, avoiding irrelevant or redundant content? (1=significant irrelevant content, 5=highly concise and relevant)"
+    )
+    readability_clarity: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="How clear and easy to understand is the summary? (1=confusing or unreadable, 5=clear, coherent, and engaging)"
+    )
+    coherence_logical_flow: int = Field(
+        ...,
+        ge=1,
+        le=5,
+        description="How well-structured and logically connected is the summary? (1=disjointed or fragmented, 5=seamlessly seamless and well-organized)"
+    )
+    language_consistency: bool = Field(
+        ...,
+        description="Is the summary in the same language as the original?"
+    )
+
+
 class SummarizationJudge:
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4.1-nano-2025-04-14"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4.1-mini-2025-04-14"):
         """
         Initialize the GPT-based summarization judge
         
@@ -25,37 +56,44 @@ class SummarizationJudge:
 
 Please evaluate the summary on these criteria:
 
-**Faithfulness (1-5)**: How accurately does the summary reflect the source content?
-- 1: Contains major factual errors or misrepresentations
-- 2: Some inaccuracies or misleading statements
-- 3: Mostly accurate with minor issues
-- 4: Very accurate with negligible issues
-- 5: Completely accurate and faithful to source
+**Faithfulness (1-5)**: How accurately does the summary reflect the source content?  
+- 1: Significant factual errors or misrepresentations  
+- 2: Some inaccuracies or misleading statements  
+- 3: Mostly accurate with minor issues  
+- 4: Very accurate with negligible issues  
+- 5: Completely accurate and faithful to the source  
 
-**Relevance (1-5)**: How well does the summary capture the most important information?
-- 1: Misses most key points, focuses on trivial details
-- 2: Captures some important points but misses several key ones
-- 3: Captures main points but may miss some important details
-- 4: Captures most important information with minor omissions
-- 5: Perfectly identifies and includes all key information
+**Recall (1-5)**: How well does the summary capture all important points from the source? A naive summary that is identical to the input text will receive a 5, as it includes all information.  
+- 1: Misses most key points, focuses on trivial details  
+- 2: Captures some important points but misses several key ones  
+- 3: Captures main points but may miss some important details  
+- 4: Captures most important information with minor omissions  
+- 5: Includes all critical information (e.g., an exact reproduction of the input text)  
 
-**Coherence (1-5)**: How well-structured and readable is the summary?
-- 1: Confusing, disjointed, hard to follow
-- 2: Some structural issues, occasionally unclear
-- 3: Generally clear but with some organizational problems
-- 4: Well-structured and mostly easy to follow
-- 5: Excellently organized, flows perfectly, very clear
+**Precision (1-5)**: How well does the summary focus on only relevant points, avoiding irrelevant or redundant content? A naive summary that is identical to the input text will likely score a 1, as it includes unnecessary details.  
+- 1: Significant irrelevant or redundant content  
+- 2: Includes some irrelevant or redundant content  
+- 3: Mostly relevant but includes minor unnecessary details  
+- 4: Highly relevant with minimal irrelevant content  
+- 5: Perfectly concise, including only relevant points  
 
-**Conciseness (1-5)**: How appropriately condensed is the summary?
-- 1: Either way too verbose or extremely brief
-- 2: Somewhat too long/short for the content
-- 3: Reasonable length but could be better optimized
-- 4: Good length with minor length issues
-- 5: Perfect balance of brevity and completeness
+**Readability/Clarity (1-5)**: How clear and easy to understand is the summary?  
+- 1: Confusing, unreadable, or poorly written  
+- 2: Somewhat unclear with noticeable issues in clarity  
+- 3: Generally clear but with minor clarity issues  
+- 4: Clear and easy to follow with negligible issues  
+- 5: Exceptionally clear, coherent, and engaging  
 
-**Language Consistency** (boolean): Is the summary in the same language as the original?
-- False: Summary is in a different language than the original
-- True:  Summary is in the same language as the original
+**Coherence/Logical Flow (1-5)**: How well-structured and logically connected is the summary?  
+- 1: Disjointed, fragmented, or lacks logical flow  
+- 2: Some structural issues, occasionally disjointed  
+- 3: Generally well-structured but with minor organizational issues  
+- 4: Well-organized with smooth transitions  
+- 5: Seamlessly connected, excellently organized, and flows perfectly  
+
+**Language Consistency (Boolean)**: Is the summary in the same language as the original?  
+- False: Summary is in a different language than the original  
+- True: Summary is in the same language as the original
 
 Focus on objective assessment. If the summary is in a different language than the original, it should be False regardless of content quality."""
 
@@ -100,7 +138,7 @@ Please evaluate this summary against the original content using the four criteri
 # Example usage
 if __name__ == "__main__":
     # Initialize judge
-    judge = SummarizationJudge(model="gpt-4.1-nano-2025-04-14")
+    judge = SummarizationJudge(model="gpt-4.1-mini-2025-04-14")
     
     # Example evaluation
     original = """# Machine Learning
@@ -118,3 +156,4 @@ Machine learning is a subset of artificial intelligence that focuses on algorith
     # evaluated_df = judge.evaluate_batch(df)
     # comparison = judge.compare_methods(evaluated_df)
     # print(comparison)
+    

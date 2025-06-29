@@ -1,19 +1,28 @@
 import spacy, pytextrank
-from summarizers import AbstractSummarizer
+from summarizers import AbstractSummarizer, MarkdownPreprocessor
 
 
 # defaults
 TOP_PHRASES = 3
 LIMIT_PHRASES = 10
-LIMIT_SENTENCES = 5
+LIMIT_SENTENCES = 3
 
+LANG_TO_CODE = {
+    "english": "en",
+    "french": "fr",
+    "spanish": "es",
+    "german": "de",
+    "chinese": "zh",
+    "arabic": "ar",
+}
 
-class FastSummarizer(AbstractSummarizer):
+class SpacyTextrank(AbstractSummarizer):
     """
     Implements a Super Lite and Fast summarization strategy.
     Prioritizes lowest latency (<300ms) using efficient extractive methods.
     """
     def __init__(self):
+        print("fast summarizer v3")
         self.nlps = {
             "en": spacy.load("en_core_web_sm"),
             "fr": spacy.load("fr_core_news_sm"),
@@ -22,16 +31,20 @@ class FastSummarizer(AbstractSummarizer):
             "zh": spacy.load("zh_core_web_sm"),
             'ar': spacy.blank('xx'),
         }
-        
-        for lange in self.nlps:
-            self.nlps[lange].add_pipe("textrank", last=True)
+        self.nlps["ar"].add_pipe("sentencizer")  # Arabic requires sentencizer
+        for lang in self.nlps:
+            self.nlps[lang].add_pipe("textrank", last=True)
     
-    def summarize(self, text: str, lang: str = "en", **kwargs) -> str:
+    def summarize(self, text: str, lang: str, **kwargs) -> str:
+        lang = LANG_TO_CODE[lang]
+        if not lang:
+            raise ValueError(f"Language '{lang}' is not supported. Supported languages: {list(LANG_TO_CODE.keys())}")
         nlp = self.nlps.get(lang)
         
         if not nlp:
             raise ValueError(f"Language '{lang}' is not supported.")
-
+        
+        # text = MarkdownPreprocessor.markdown_to_clean_text(text)
         doc = nlp(text)
         
         top_phrases = kwargs.get("top_phrases", TOP_PHRASES)
@@ -45,11 +58,12 @@ class FastSummarizer(AbstractSummarizer):
                                                                 limit_sentences=limit_sentences,
                                                                 level="sentence")]
 
-        formatted = f"Keywords : [{', '.join(top_phrases)}]\n"
-        for sent in summary:
-            if max_length_chars and len(formatted) + len(sent) > max_length_chars:
-                break
-            formatted += f"- {sent}\n"
-        return formatted
+        # formatted = f"Keywords : [{', '.join(top_phrases)}]\n"
+        # for sent in summary:
+        #     if max_length_chars and len(formatted) + len(sent) > max_length_chars:
+        #         break
+        #     formatted += f"- {sent}\n"
+        # return formatted
+        return "\n".join(summary)
 
     

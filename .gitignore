@@ -5,3 +5,6 @@ dataset/
 __pycache__/
 
 .env
+
+# Embedding cache
+.embeddings/

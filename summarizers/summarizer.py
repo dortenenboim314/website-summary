@@ -15,8 +15,6 @@ class AbstractSummarizer(ABC):
             text (str): The input text to be summarized. Can be raw markdown.
             lang (str): ISO 639-1 language code (e.g., "en", "fr", "es", "de", "ar", "zh").
                         Supports English, French, Spanish, German, Arabic, Chinese.
-            max_length (int): Maximum length of the generated summary.
-            min_length (int): Minimum length of the generated summary.
             **kwargs: Additional parameters specific to the summarization strategy.
 
         Returns:

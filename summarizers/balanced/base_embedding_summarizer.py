@@ -49,6 +49,10 @@ class BaseEmbeddingSummarizer(AbstractSummarizer):
         Returns:
             Summary text
         """
+        
+        should_use_cached_embeddings = kwargs.get("use_cached_embeddings", True)
+        
+        
         if lang not in self.nlps:
             raise ValueError(
                 f"Language '{lang}' is not supported. "
@@ -65,7 +69,10 @@ class BaseEmbeddingSummarizer(AbstractSummarizer):
         
         # Embed sentences and full document
         to_embed = sentences + [text]
-        embeddings = self.embedder.embed_texts(to_embed)
+        if should_use_cached_embeddings:
+            embeddings = self.embedder.embed_texts_cached(to_embed)
+        else:
+            embeddings = self.embedder.embed_texts(to_embed)
         
         sentence_embeddings = embeddings[:-1]
         doc_embedding = embeddings[-1].reshape(1, -1)
